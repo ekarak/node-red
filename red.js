@@ -317,9 +317,39 @@ process.on('uncaughtException',function(err) {
     process.exit(1);
 });
 
+// set to datetime when Node-Red starts graceful shutdown
+var shutdown_start;
+
+// how much time are we willing to wait (in millisec);
+var shutdown_timeout = 1000;
+
+// test whether a handle is still active
+function activeHandle(handle, idx, handles) {
+    switch(handle.constructor.name) {
+        case 'Socket':
+          console.log('active socket');
+          return true;
+        default:
+          return false;
+    }
+}
+
+function graceful_exit() {
+  if (Date.now() - shutdown_start > shutdown_timeout) {
+    console.log('TIMEOUT occurred while waiting for active handles to close');
+    process.exit();
+  } else {
+    if( process._getActiveHandles().some(activeHandle) ) {
+      setTimeout(graceful_exit, 100);
+    } else {
+      process.exit();
+    }
+  }
+}
+
 process.on('SIGINT', function () {
     RED.stop();
-    // TODO: need to allow nodes to close asynchronously before terminating the
-    // process - ie, promises
-    process.exit();
+    shutdown_start = Date.now();
+    graceful_exit();
 });
+
